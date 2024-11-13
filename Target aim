@@ -1,0 +1,109 @@
+-- LocalScript (place in StarterPlayerScripts or StarterGui)
+
+local player = game.Players.LocalPlayer
+local camera = game.Workspace.CurrentCamera
+local mouse = player:GetMouse()
+
+-- ESP variables
+local espEnabled = true
+local highlightColor = Color3.fromRGB(255, 0, 0)  -- Red color for targets
+local targetRadius = 10  -- Max distance for detecting targets
+local fovRadius = 100  -- Visualize the FOV
+local fovCircleVisible = true  -- FOV circle visibility (initially visible)
+
+-- Create ESP Box
+local function createESPBox(target)
+    local espBox = Instance.new("Frame")
+    espBox.Size = UDim2.new(0, 200, 0, 200)  -- Size of the box
+    espBox.Position = UDim2.new(0, mouse.X - 100, 0, mouse.Y - 100)  -- Centered on the target
+    espBox.BorderSizePixel = 2
+    espBox.BorderColor3 = highlightColor
+    espBox.BackgroundTransparency = 1
+    espBox.Parent = game.CoreGui
+    return espBox
+end
+
+-- Create NameTag for the target
+local function createNameTag(target)
+    local nameTag = Instance.new("TextLabel")
+    nameTag.Size = UDim2.new(0, 200, 0, 50)
+    nameTag.Position = UDim2.new(0, mouse.X - 100, 0, mouse.Y - 50)  -- Place below the target
+    nameTag.Text = target.Name
+    nameTag.TextColor3 = highlightColor
+    nameTag.BackgroundTransparency = 1
+    nameTag.Font = Enum.Font.SourceSans
+    nameTag.TextSize = 20
+    nameTag.Parent = game.CoreGui
+    return nameTag
+end
+
+-- FOV Circle
+local function createFOVCircle()
+    local fovCircle = Instance.new("Frame")
+    fovCircle.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
+    fovCircle.Position = UDim2.new(0.5, -fovRadius, 0.5, -fovRadius)  -- Center on screen
+    fovCircle.BackgroundColor3 = Color3.fromRGB(0, 255, 0)  -- Green for FOV circle
+    fovCircle.BorderSizePixel = 2
+    fovCircle.BorderColor3 = Color3.fromRGB(0, 255, 0)
+    fovCircle.BackgroundTransparency = 0.5
+    fovCircle.Visible = fovCircleVisible
+    fovCircle.Parent = game.CoreGui
+    return fovCircle
+end
+
+-- Check if the target is within the player's FOV
+local function isTargetInFOV(target)
+    local screenPosition, onScreen = camera:WorldToScreenPoint(target.HumanoidRootPart.Position)
+    local distance = (camera.CFrame.Position - target.HumanoidRootPart.Position).magnitude
+    return onScreen and distance <= fovRadius
+end
+
+-- Main loop to scan for targets and display visuals
+game:GetService("RunService").RenderStepped:Connect(function()
+    if not espEnabled then return end
+    
+    -- Loop through all characters and check for enemies (players or NPCs)
+    for _, obj in pairs(workspace:GetChildren()) do
+        if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj.Humanoid.Health > 0 and obj ~= player.Character then
+            -- Check if the target is within the FOV
+            if isTargetInFOV(obj) then
+                -- Create ESP Box and NameTag
+                local espBox = createESPBox(obj)
+                local nameTag = createNameTag(obj)
+
+                -- Update ESP box and name tag to follow the target position
+                game:GetService("RunService").RenderStepped:Connect(function()
+                    local screenPos, onScreen = camera:WorldToScreenPoint(obj.HumanoidRootPart.Position)
+                    if onScreen then
+                        espBox.Position = UDim2.new(0, screenPos.X - espBox.Size.X.Offset / 2, 0, screenPos.Y - espBox.Size.Y.Offset / 2)
+                        nameTag.Position = UDim2.new(0, screenPos.X - nameTag.Size.X.Offset / 2, 0, screenPos.Y - nameTag.Size.Y.Offset / 2)
+                    else
+                        espBox.Visible = false
+                        nameTag.Visible = false
+                    end
+                end)
+            end
+        end
+    end
+end)
+
+-- Create the FOV Circle
+createFOVCircle()
+
+-- Toggle ESP and FOV visibility with 'C' key
+local UserInputService = game:GetService("UserInputService")
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.KeyCode == Enum.KeyCode.C then
+        espEnabled = not espEnabled  -- Toggle ESP
+        fovCircleVisible = not fovCircleVisible  -- Toggle FOV visibility
+        
+        -- Update the FOV Circle visibility
+        for _, obj in pairs(game.CoreGui:GetChildren()) do
+            if obj:IsA("Frame") and obj.BackgroundColor3 == Color3.fromRGB(0, 255, 0) then
+                obj.Visible = fovCircleVisible
+            end
+        end
+    end
+end)
